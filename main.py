@@ -5,12 +5,12 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QPoint, QSize
 from PyQt5.QtGui import QColor, QIcon, QPainter, QPixmap, QCursor
 import sys, os
+import json
 
 # Отключить автоматическое масштабирование DPI в Qt (если нужно)
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "0"
 
 app = QApplication(sys.argv)
-# Или вручную установить атрибут:
 app.setAttribute(Qt.AA_EnableHighDpiScaling, False)
 
 
@@ -210,6 +210,26 @@ class CardWidget(QFrame):
             new_card.show()
             parent.cards.append(new_card)
 
+    def to_dict(self):
+        return {
+            "text": self.text_edit.toPlainText(),
+            "color": self.color.name(),
+            "pos": [self.x(), self.y()],
+            "size": [self.width(), self.height()],
+            "z": self.parent().cards.index(self) if self.parent() else 0  # используем индекс в списке как слой
+        }
+
+    @classmethod
+    def from_dict(cls, data, parent=None):
+        color = QColor(data.get("color", "#fff8b0"))
+        card = cls(data.get("text", ""), color, parent)
+        pos = data.get("pos", [20, 20])
+        size = data.get("size", [200, 140])
+        card.move(pos[0], pos[1])
+        card.setFixedSize(size[0], size[1])
+        card.show()
+        return card
+
 
 class BoardWidget(QWidget):
     def __init__(self, parent=None):
@@ -235,6 +255,32 @@ class BoardWidget(QWidget):
         b = random.randint(base, 255)
         return QColor(r, g, b)
 
+    def save_board(self, filename="board_state.json"):
+        data = [card.to_dict() for card in self.cards if card.isVisible()]
+        try:
+            with open(filename, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print("Ошибка сохранения:", e)
+
+    def load_board(self, filename="board_state.json"):
+        try:
+            with open(filename, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            data = []
+        # Удаляем старые карточки
+        for card in self.cards:
+            card.deleteLater()
+        self.cards = []
+        # Создаем новые из данных
+        for card_data in data:
+            card = CardWidget.from_dict(card_data, self)
+            self.cards.append(card)
+        # Восстановим порядок по индексу z (просто по порядку в списке)
+        for card in self.cards:
+            card.raise_()
+
 
 class BottomBar(QWidget):
     def __init__(self, parent=None):
@@ -254,7 +300,7 @@ class BottomBar(QWidget):
         self.add_card_btn.setStyleSheet("""
             QPushButton {
                 border-radius: 20px;
-                background-color: #2979FF;  /* хороший современный синий */
+                background-color: #2979FF;
                 border: none;
             }
             QPushButton:hover {
@@ -264,9 +310,9 @@ class BottomBar(QWidget):
 
         layout.addWidget(self.add_card_btn)
         layout.addStretch()
-    
+
     def create_icon(self, char):
-        pix = QPixmap(40,40)
+        pix = QPixmap(40, 40)
         pix.fill(Qt.transparent)
         painter = QPainter(pix)
         painter.setPen(Qt.white)
@@ -299,8 +345,16 @@ class MainWindow(QMainWindow):
 
         self.bottom_bar.add_card_btn.clicked.connect(self.on_add_card)
 
+        # Загружаем доску при старте
+        self.board.load_board()
+
     def on_add_card(self):
         self.board.add_card()
+
+    def closeEvent(self, event):
+        # Сохраняем перед закрытием
+        self.board.save_board()
+        event.accept()
 
 
 if __name__ == "__main__":
