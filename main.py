@@ -64,12 +64,15 @@ class CardWidget(QFrame):
 
         self.color_indicator = ColorIndicator(self.color, self)
 
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        palette_icon_path = os.path.join(script_dir, "img", "palette.png")
+
         # Кнопка смены цвета с PNG иконкой
         self.color_btn = QPushButton("", self)
         self.color_btn.setFixedSize(24, 24)
         self.color_btn.setToolTip("Сменить цвет")
         self.color_btn.setCursor(QCursor(Qt.PointingHandCursor))
-        self.color_btn.setIcon(QIcon("img/palette.png"))  # путь к PNG иконке
+        self.color_btn.setIcon(QIcon(palette_icon_path)) 
         self.color_btn.setIconSize(QSize(18, 18))
         self.color_btn.setStyleSheet("""
             QPushButton {
